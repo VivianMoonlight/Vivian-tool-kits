@@ -3,10 +3,18 @@
 // @namespace    local.echo-clothing-compat
 // @version      1.3.0
 // @description  Fixes Echo image requests, default colors, toe-nail layers and texture mask paths. Loads ULTRAbc 6.5.
-// @match        https://www.bondageprojects.elementfx.com/R134/BondageClub/*
-// @run-at       document-start
+// @author       VIVianMoonlight
+// @match        https://bondageprojects.elementfx.com/*
+// @match        https://www.bondageprojects.elementfx.com/*
+// @match        https://bondage-europe.com/*
+// @match        https://www.bondage-europe.com/*
+// @match        https://bondage-asia.com/*
+// @match        https://www.bondage-asia.com/*
+// @match        http://localhost:*/*
+// @run-at       document-end
 // @grant        none
-// @sandbox      raw
+// @updateURL    https://cdn.jsdelivr.net/gh/VivianMoonlight/Vivians-Portable-Wardrobe@wardrobe-react/ViviansPortableWardrobeReactLoader.user.js
+// @downloadURL  https://cdn.jsdelivr.net/gh/VivianMoonlight/Vivians-Portable-Wardrobe@wardrobe-react/ViviansPortableWardrobeReactLoader.user.js
 // ==/UserScript==
 
 (() => {
