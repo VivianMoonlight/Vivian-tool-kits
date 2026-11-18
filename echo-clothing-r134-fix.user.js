@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         R134 compatibility for Echo Clothing and ULTRAbc
 // @namespace    local.echo-clothing-compat
-// @version      1.3.1
-// @description  Fixes image requests and default colors for Echo Clothing stable and beta. Loads ULTRAbc 6.5.
+// @version      1.4.0
+// @description  Fixes image requests and default colors for Echo Clothing stable and beta, and duplicate WebGL translation. Loads ULTRAbc 6.5.
 // @author       VIVianMoonlight
 // @match        https://bondageprojects.elementfx.com/*
 // @match        https://www.bondageprojects.elementfx.com/*
@@ -47,7 +47,6 @@
 
         if (!request) return next(args);
 
-        // Echo can now apply its cross-origin policy to a single Request.
         const forwarded = args.slice();
         forwarded[0] = request;
         forwarded[1] = undefined;
@@ -59,8 +58,6 @@
         const pendingDefaults = new WeakMap();
         const explicitPresets = new WeakSet();
 
-        // Echo calls the original AssetAdd. Its calls to these two functions
-        // still go through ModSDK, including for custom and mirrored assets.
         mod.hookFunction('AssetMapLayer', 0, (args, next) => {
             const [definition, asset, , assetDefinition] = args;
             const layer = next(args);
@@ -80,6 +77,7 @@
             if (defaults !== undefined) {
                 pendingDefaults.delete(asset);
                 const nativeSlots = new Set();
+
                 for (const layer of asset.Layer) {
                     if (layer.AllowColorize && !layer.CopyLayerColor && explicitPresets.has(layer)) {
                         nativeSlots.add(layer.ColorIndex);
@@ -90,7 +88,8 @@
                     if (!layer.AllowColorize || layer.CopyLayerColor || nativeSlots.has(layer.ColorIndex)) continue;
                     const color = Array.isArray(defaults) ? defaults[layer.ColorIndex] : defaults;
                     if (typeof color === 'string' && (
-                        color === 'Default' || /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)
+                        color === 'Default'
+                        || /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)
                         || asset.Group.ColorSchema.includes(color)
                     )) {
                         layer.Color = [color, ...layer.Color.slice(1)];
@@ -107,6 +106,7 @@
     function loadUltrabc() {
         const ultraUrl = 'https://cdn.jsdelivr.net/gh/tetris245/ULTRAbc@f0cda35d87082a8c270783260638b6e563d12cdc/ULTRAbc.js';
         const ultraIntegrity = 'sha384-nAA9wOf5/Nx4ASOIaYl4Phk1u/F6dOR3ypNLK6bmoj6XI9EjAUIcCCcj0jLTTO5D';
+
         if (page.UBCver) {
             if (page.UBCver !== '6.5') {
                 console.warn('[R134 compatibility] Disable ULTRAbc in PCM and refresh.');
@@ -124,6 +124,63 @@
         document.head.appendChild(script);
     }
 
+    // 7. Apply appearance translation once in WebGL.
+    function installWebGLTranslationFix(sdk, mod) {
+        function sourceOf(name) {
+            const original = sdk.getPatchingInfo().get(name)?.original ?? page[name];
+            return typeof original === 'function' ? original.toString() : '';
+        }
+
+        const glName = 'GLDrawImage';
+        const buildName = 'CommonDrawAppearanceBuild';
+        const glSource = sourceOf(glName);
+        const buildSource = sourceOf(buildName);
+        const drawX = 'dstX + offsetX + (TranslationX || 0) * (Mirror ? 3 : 1)';
+        const drawY = 'dstY + (1 * (TranslationY || 0))';
+        const transforms = 'const { TranslationX, TranslationY, ScaleX, ScaleY, Rotation } = options ?? {};';
+
+        if (glSource.includes(drawX) && glSource.includes(drawY) && glSource.includes(transforms)
+            && buildSource.includes('const drawX = X + transforms.TranslationX;')
+            && buildSource.includes('const drawY = Y + transforms.TranslationY;')) {
+            const flagName = 'local.bc-native-compat.r134.translation-applied';
+            const translated = Symbol.for(flagName);
+
+            mod.patchFunction(glName, {
+                [transforms]: transforms + `\nconst alreadyTranslated = options?.[Symbol.for(${JSON.stringify(flagName)})];`,
+                [drawX]: 'dstX + offsetX + (TranslationX || 0) * (alreadyTranslated ? (Mirror ? 2 : 0) : (Mirror ? 3 : 1))',
+                [drawY]: 'dstY + (TranslationY || 0) * (alreadyTranslated ? (Invert ? 2 : 0) : 1)',
+            });
+
+            // Mirror and Invert reverse the translated coordinates.
+            // Compensate so each screen-space offset is applied once.
+            mod.hookFunction(buildName, 0, (args, next) => {
+                const callbacks = { ...args[1] };
+                for (const name of [
+                    'drawImage', 'drawImageBlink', 'drawImageColorize', 'drawImageColorizeBlink',
+                    'drawCanvas', 'drawCanvasBlink',
+                ]) {
+                    const draw = callbacks[name];
+                    if (typeof draw !== 'function') continue;
+
+                    const optionIndex = name.startsWith('drawCanvas') ? 5 : 3;
+                    callbacks[name] = function (...drawArgs) {
+                        const options = drawArgs[optionIndex];
+                        if (options?.TranslationX || options?.TranslationY) {
+                            drawArgs[optionIndex] = { ...options, [translated]: true };
+                        }
+                        return draw.apply(this, drawArgs);
+                    };
+                }
+
+                const forwarded = args.slice();
+                forwarded[1] = callbacks;
+                return next(forwarded);
+            });
+
+            console.info('[R134 transform fix] WebGL translation installed.');
+        }
+    }
+
     function install() {
         if (page[installed]) return;
 
@@ -135,13 +192,17 @@
             const mod = sdk.registerMod({
                 name: modName,
                 fullName: 'Echo Clothing Extension and ULTRAbc R134 compatibility',
-                version: '1.3.1',
+                version: '1.4.0',
             });
+
             // ModSDK runs larger priorities first. Echo's hook has priority 0.
             mod.hookFunction('CommonFetch', 1, preserveImageRequest);
             installDefaultColorRemap(mod);
+            installWebGLTranslationFix(sdk, mod);
+
             page[installed] = true;
-            console.info('[R134 compatibility] Echo image and default color fixes installed (1.3.1).');
+            console.info('[R134 compatibility] Echo compatibility fixes installed (1.4.0).');
+
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', loadUltrabc, { once: true });
             } else {
