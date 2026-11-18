@@ -2,7 +2,7 @@
 // @name         R134 compatibility for Echo Clothing and ULTRAbc
 // @namespace    local.echo-clothing-compat
 // @version      1.3.1
-// @description  Fixes Echo image requests, default colors, toe-nail layers and texture mask paths. Loads ULTRAbc 6.5.
+// @description  Fixes image requests and default colors for Echo Clothing stable and beta. Loads ULTRAbc 6.5.
 // @author       VIVianMoonlight
 // @match        https://bondageprojects.elementfx.com/*
 // @match        https://www.bondageprojects.elementfx.com/*
@@ -21,9 +21,6 @@
     'use strict';
 
     const page = window;
-    if (page.location.hostname !== 'www.bondageprojects.elementfx.com'
-        || !page.location.pathname.startsWith('/R134/BondageClub/')) return;
-
     const modName = 'EchoClothingR134ImageFix';
     const installed = Symbol.for('local.echo-clothing-compat.r134.installed');
     const installDeadline = Date.now() + 60_000;
@@ -104,27 +101,9 @@
         });
     }
 
-    // 4. EchoV1 texture masks must strip the internal marker after mapping.
-    function installTextureMaskPaths(mod) {
-        const noMapPrefix = '@nomap/';
-        function hasNoMapPrefix(mask) {
-            return typeof mask?.Url === 'string' && mask.Url.startsWith(noMapPrefix);
-        }
+    // 3–5 are disabled.
 
-        // Echo maps at priority 0. Let it honor @nomap/ before stripping it.
-        mod.hookFunction('GLDrawLoadTextureAlphaMask', -1, (args, next) => {
-            const masks = args[5];
-            if (!Array.isArray(masks) || !masks.some(hasNoMapPrefix)) return next(args);
-
-            const forwarded = args.slice();
-            forwarded[5] = masks.map(mask => hasNoMapPrefix(mask)
-                ? { ...mask, Url: mask.Url.slice(noMapPrefix.length) }
-                : mask);
-            return next(forwarded);
-        });
-    }
-
-    // 5. ULTRAbc 6.5 for the R134 Information Sheet.
+    // 6. ULTRAbc 6.5 for the R134 Information Sheet.
     function loadUltrabc() {
         const ultraUrl = 'https://cdn.jsdelivr.net/gh/tetris245/ULTRAbc@f0cda35d87082a8c270783260638b6e563d12cdc/ULTRAbc.js';
         const ultraIntegrity = 'sha384-nAA9wOf5/Nx4ASOIaYl4Phk1u/F6dOR3ypNLK6bmoj6XI9EjAUIcCCcj0jLTTO5D';
@@ -152,21 +131,17 @@
         if (typeof sdk?.registerMod === 'function'
             && typeof page.CommonFetch === 'function'
             && typeof page.AssetMapLayer === 'function'
-            && typeof page.AssetAssignDefaultColor === 'function'
-            && typeof page.AssetParseParentGroup === 'function'
-            && typeof page.GLDrawLoadTextureAlphaMask === 'function') {
+            && typeof page.AssetAssignDefaultColor === 'function') {
             const mod = sdk.registerMod({
                 name: modName,
                 fullName: 'Echo Clothing Extension and ULTRAbc R134 compatibility',
-                version: '1.3.0',
+                version: '1.3.1',
             });
             // ModSDK runs larger priorities first. Echo's hook has priority 0.
             mod.hookFunction('CommonFetch', 1, preserveImageRequest);
             installDefaultColorRemap(mod);
-            installToeNailLayers(mod);
-            installTextureMaskPaths(mod);
             page[installed] = true;
-            console.info('[R134 compatibility] Echo image, default color, toe-nail and texture mask fixes installed.');
+            console.info('[R134 compatibility] Echo image and default color fixes installed (1.3.1).');
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', loadUltrabc, { once: true });
             } else {
