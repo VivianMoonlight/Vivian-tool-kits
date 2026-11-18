@@ -104,20 +104,6 @@
         });
     }
 
-    // 3. Echo toe-nail textures use the BodyLower variant in their filenames.
-    function installToeNailLayers(mod) {
-        mod.hookFunction('AssetMapLayer', 0, (args, next) => {
-            const [definition, asset, , assetDefinition] = args;
-            const layer = next(args);
-            if (asset.Name === '脚趾甲' && asset.DynamicGroupName === 'Shoes'
-                && (layer.Name === '左' || layer.Name === '右')
-                && definition.ParentGroup === undefined && assetDefinition.ParentGroup === undefined) {
-                layer.ParentGroup = page.AssetParseParentGroup('BodyLower', {});
-            }
-            return layer;
-        });
-    }
-
     // 4. EchoV1 texture masks must strip the internal marker after mapping.
     function installTextureMaskPaths(mod) {
         const noMapPrefix = '@nomap/';
