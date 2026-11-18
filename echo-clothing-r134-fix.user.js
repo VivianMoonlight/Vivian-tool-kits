@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         R134 compatibility for Echo Clothing and ULTRAbc
 // @namespace    local.echo-clothing-compat
-// @version      1.3.0
+// @version      1.3.1
 // @description  Fixes Echo image requests, default colors, toe-nail layers and texture mask paths. Loads ULTRAbc 6.5.
 // @author       VIVianMoonlight
 // @match        https://bondageprojects.elementfx.com/*
@@ -13,8 +13,8 @@
 // @match        http://localhost:*/*
 // @run-at       document-end
 // @grant        none
-// @updateURL    https://cdn.jsdelivr.net/gh/VivianMoonlight/Vivians-Portable-Wardrobe@wardrobe-react/ViviansPortableWardrobeReactLoader.user.js
-// @downloadURL  https://cdn.jsdelivr.net/gh/VivianMoonlight/Vivians-Portable-Wardrobe@wardrobe-react/ViviansPortableWardrobeReactLoader.user.js
+// @updateURL    https://raw.githubusercontent.com/VivianMoonlight/Vivian-tool-kits/main/echo-clothing-r134-fix.user.js
+// @downloadURL  https://raw.githubusercontent.com/VivianMoonlight/Vivian-tool-kits/main/echo-clothing-r134-fix.user.js
 // ==/UserScript==
 
 (() => {
