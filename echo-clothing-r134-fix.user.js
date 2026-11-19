@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         R134 compatibility for Echo Clothing and ULTRAbc
 // @namespace    local.echo-clothing-compat
-// @version      1.4.0
-// @description  Fixes image requests and default colors for Echo Clothing stable and beta, and duplicate WebGL translation. Loads ULTRAbc 6.5.
+// @version      1.5.0
+// @description  Fixes Echo image requests and default colors, and R134 layer-priority editing. Loads ULTRAbc 6.5.
 // @author       VIVianMoonlight
 // @match        https://bondageprojects.elementfx.com/*
 // @match        https://www.bondageprojects.elementfx.com/*
@@ -124,7 +124,7 @@
         document.head.appendChild(script);
     }
 
-    // 7. Apply appearance translation once in WebGL.
+    // 7. Optional WebGL translation override.
     function installWebGLTranslationFix(sdk, mod) {
         function sourceOf(name) {
             const original = sdk.getPatchingInfo().get(name)?.original ?? page[name];
@@ -181,6 +181,32 @@
         }
     }
 
+    // 8. Allow the first per-layer priority edit when no override is set.
+    function installLayerPriorityFix(sdk, mod) {
+        const name = 'Layering._ApplyLayerPriority';
+        const original = sdk.getPatchingInfo().get(name)?.original ?? page.Layering?._ApplyLayerPriority;
+        const buggyGuard = 'if (this.OverridePriority === undefined || !this.Character) throw new Error("called before Layering.Init()");';
+
+        if (typeof original !== 'function' || !original.toString().includes(buggyGuard)) return;
+
+        mod.hookFunction(name, 0, (args, next) => {
+            const layering = page.Layering;
+            if (!layering?.Item || !layering.Character || layering.OverridePriority !== undefined) {
+                return next(args);
+            }
+
+            // Let the original method convert a non-object priority into per-layer overrides.
+            layering.OverridePriority = null;
+            try {
+                return next(args);
+            } finally {
+                if (layering.Item && layering.OverridePriority === null) {
+                    layering.OverridePriority = undefined;
+                }
+            }
+        });
+    }
+
     function install() {
         if (page[installed]) return;
 
@@ -192,16 +218,17 @@
             const mod = sdk.registerMod({
                 name: modName,
                 fullName: 'Echo Clothing Extension and ULTRAbc R134 compatibility',
-                version: '1.4.0',
+                version: '1.5.0',
             });
 
             // ModSDK runs larger priorities first. Echo's hook has priority 0.
             mod.hookFunction('CommonFetch', 1, preserveImageRequest);
             installDefaultColorRemap(mod);
-            installWebGLTranslationFix(sdk, mod);
+            // installWebGLTranslationFix(sdk, mod); // Preserve the game's WebGL translation behavior.
+            installLayerPriorityFix(sdk, mod);
 
             page[installed] = true;
-            console.info('[R134 compatibility] Echo compatibility fixes installed (1.4.0).');
+            console.info('[R134 compatibility] Echo compatibility fixes installed (1.5.0).');
 
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', loadUltrabc, { once: true });
